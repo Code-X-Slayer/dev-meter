@@ -1,0 +1,12 @@
+Alembic migration scripts for DevMeter.
+
+Create a migration after adding ORM models:
+
+    poetry run alembic revision --autogenerate -m "describe the change"
+
+Apply migrations:
+
+    poetry run alembic upgrade head
+
+The database URL comes from DEVMETER_DATABASE_URL or the safe local SQLite
+default in the application settings. No product tables exist yet.

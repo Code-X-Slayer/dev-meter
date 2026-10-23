@@ -1,0 +1,24 @@
+# Local environments and secrets
+.venv/
+.env
+.env.*
+!.env.example
+
+# Python caches and tooling output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local databases and generated runtime files
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage and packaging output
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/

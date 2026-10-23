@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: dev-meter
+    runtime: python
+    buildCommand: >-
+      pip install "poetry==$POETRY_VERSION" &&
+      poetry install --only main &&
+      poetry run alembic upgrade head
+    startCommand: poetry run python -m dev_meter.main
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.4
+      - key: POETRY_VERSION
+        value: 2.5.1
+      - key: DEVMETER_ENVIRONMENT
+        value: production
+      - key: DEVMETER_DEBUG
+        value: "false"
+      - key: DEVMETER_DATABASE_URL
+        sync: false
+      - key: DEVMETER_ADMIN_USERNAME
+        sync: false
+      - key: DEVMETER_ADMIN_PASSWORD_HASH
+        sync: false
+      - key: DEVMETER_JWT_SECRET
+        sync: false
+      - key: DEVMETER_JWT_EXPIRY_MINUTES
+        value: "30"
