@@ -59,49 +59,59 @@ database session. Alembic owns schema migrations.
 - SQLite for isolated local tests
 - PostgreSQL and `psycopg` for the intended production database
 - pytest and Ruff
+- React, TypeScript, Vite, Tailwind CSS, and Recharts dashboard
 
 ## Project structure
 
 ```text
-src/dev_meter/
-├── api/
-│   ├── analytics_routes.py
-│   ├── gateway_routes.py
-├── auth_routes.py
-├── auth_schemas.py
-├── dependencies.py
-│   ├── routes.py
-│   └── schemas.py
-├── core/
-│   ├── config.py
-│   └── validation.py
-├── infrastructure/database/
-│   ├── base.py
-│   ├── engine.py
-│   ├── lifecycle.py
-│   ├── models.py
-│   └── session.py
-└── services/
-    ├── analytics.py
-    ├── auth.py
-    ├── gateway.py
-    └── registry.py
+.
+├── alembic/                 # Database migrations
+├── docs/                    # Architecture and API reference
+├── frontend/                # React/Vite dashboard
+│   └── src/
+├── scripts/                 # Disposable local demo
+├── src/dev_meter/
+│   ├── api/                 # FastAPI routes and schemas
+│   ├── core/                # Settings and validation
+│   ├── infrastructure/      # SQLAlchemy engine, sessions, and models
+│   └── services/            # Auth, registry, gateway, and analytics
+├── tests/                   # Backend tests
+├── pyproject.toml
+├── poetry.lock
+└── .github/workflows/ci.yml
 ```
 
-## Setup
+## Local setup (Ubuntu or WSL)
 
 Requirements:
 
 - Python 3.14 or newer
 - Poetry 2.x
+- Node.js 20 or newer and npm
 
-Install the project and development dependencies:
+From an Ubuntu or WSL terminal, clone the repository, enter it, and install
+the locked backend dependencies:
 
 ```bash
+git clone <REPOSITORY_URL>
+cd dev-meter
 poetry install
 ```
 
-Run commands inside the managed environment with `poetry run`.
+If Poetry is not installed, install it using the official Poetry instructions
+for your environment, then reopen the terminal so `poetry` is on `PATH`. Run
+Python commands inside the managed environment with `poetry run`.
+
+Install the locked dashboard dependencies separately:
+
+```bash
+cd frontend
+npm ci
+cd ..
+```
+
+Do not create or commit `.env` files. Export local settings in the shell or
+use a local secret manager instead.
 
 ## Configuration
 
@@ -199,6 +209,70 @@ HTTPX mock, and prints summary and daily analytics. It authenticates through
 the local management login endpoint but does not print the JWT or full API-key
 secret. The temporary database is removed automatically when the script exits.
 It does not call an external API.
+
+## Dashboard
+
+The repository includes a separate Vite dashboard in [`frontend/`](./frontend/)
+for the existing management and gateway APIs. It does not add backend routes
+or fabricate data:
+
+- **Overview** reads service summaries and daily usage.
+- **Services** registers upstreams and composes service details from existing
+  service, key, and summary endpoints.
+- **API keys** creates and revokes service keys; a new secret is displayed once
+  and is never written to browser storage.
+- **Analytics** renders the backend's daily usage response with inclusive date
+  filters.
+- **API playground** sends JSON through the protected gateway using a
+  service-specific API key.
+
+Install and run it with Node.js 20 or newer:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Run the FastAPI server separately with `poetry run python -m dev_meter.main`.
+Vite proxies `/v1` and `/health` to `http://127.0.0.1:8000`, so local
+development does not require CORS configuration. The management JWT is held in
+React memory and is cleared when the page is refreshed or the user signs out.
+Administrator credentials and signing secrets are entered through the login
+form and are not frontend environment variables.
+
+For a separately hosted frontend, set the non-secret
+`VITE_API_BASE_URL` before building, for example
+`VITE_API_BASE_URL=https://api.example.test npm run build`. Leave it unset for
+the local Vite proxy. The backend must then allow the frontend origin through
+its CORS policy; this repository does not enable permissive production CORS.
+The frontend does not use cookies, so requests use explicit bearer headers.
+Rejected or expired management tokens clear the in-memory session and return to
+the login screen.
+
+Frontend checks:
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+The frontend dependencies are locked in
+[`frontend/package-lock.json`](./frontend/package-lock.json). The dashboard
+checks have been run locally with Node.js 20; the GitHub Actions workflow runs
+the same locked install, test, and build commands.
+
+Dependency audit status as of 2026-10-23:
+
+- `npm audit --omit=dev`: no production vulnerabilities reported.
+- `npm audit`: 13 findings remain in development-only tooling, including
+  `tinypool`, nested Vite/esbuild, Vitest's mocker, and Tailwind CSS's legacy
+  `braces` dependency path. npm's available fixes require breaking upgrades
+  (`vitest@4.1.12`/newer and `tailwindcss@4.3.3`), so they were not applied
+  blindly. These tools are used only in local development and CI builds, not
+  in the deployed browser bundle. Reassess them before expanding CI trust or
+  running development tooling against untrusted project input.
 
 The liveness endpoint is:
 
@@ -356,8 +430,8 @@ credentials are stored in the project.
 GitHub Actions configuration is defined in
 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml). It runs on pushes and
 pull requests using Ubuntu 24.04 and Python 3.14, matching the project's
-`requires-python` constraint. The workflow installs Poetry 2.5.1, installs the
-locked dependencies, and runs:
+`requires-python` constraint. The backend job installs Poetry 2.5.1 and the
+locked Python dependencies, then runs:
 
 ```bash
 poetry run ruff format --check .
@@ -371,17 +445,22 @@ poetry run alembic downgrade base
 Migration validation uses a temporary SQLite database and removes it even when
 a migration command fails. The workflow requires no production credentials,
 PostgreSQL server, or external upstream service. This repository documents the
-workflow configuration; no GitHub Actions run has been claimed or observed
-from this environment.
+workflow configuration. A second job installs the locked frontend dependencies
+with Node.js 20, runs the Vitest client checks, and builds the dashboard. Local
+validation of the current working tree has passed; the current unpushed changes
+have not been run remotely. Check GitHub Actions after pushing this reviewed
+change set.
 
-## Render deployment preparation
+## Deployment status and future Render option
 
 [`render.yaml`](./render.yaml) defines a minimal Python web service. It installs
 the locked Poetry dependencies, applies `alembic upgrade head` during the build
 before the web process starts, and uses `/health` as the Render health check.
 It does not create a database or contain credentials.
 
-The blueprint expects these environment values:
+DevMeter is not deployed and this repository does not publish an application
+URL. Render and PostgreSQL remain optional future work. If deployment is
+attempted later, the blueprint expects these environment values:
 
 | Variable | Render setup |
 | --- | --- |

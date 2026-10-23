@@ -46,3 +46,30 @@ jobs:
           poetry run alembic upgrade head
           poetry run alembic check
           poetry run alembic downgrade base
+
+  frontend:
+    name: Validate dashboard
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm run test
+
+      - name: Build dashboard
+        working-directory: frontend
+        run: npm run build
